@@ -42,11 +42,73 @@ mvp_table_all.to_excel("~/scrapping/nba.xlsx")
 path = Service("~/Downloads/chromedriver_win32")
 driver = webdriver.Chrome(service=path)
 
-driver.get("https://www.basketball-reference.com/leagues/NBA_1993_per_game.html")
-driver.execute_script("window.scrollTo(1,10000)")
-time.sleep(2)
-players_1993 = driver.page_source
-print(players_1993)
+for year in years:
+    starting_url = "https://www.basketball-reference.com/leagues/NBA_{}_per_game.html"
+    driver.get(starting_url.format(year))
+    driver.execute_script("window.scrollTo(1,10000)")
+    time.sleep(2)
+    player_html = driver.page_source
+    
+    with open("player/{}.html".format(year), "w+", encoding="utf-8") as f:
+        f.write(player_html)
+        
+player_per_game = []
 
-with open("player/1993.html", "w+", encoding="utf-8") as f:
-    f.write(players_1993)
+for year in years:
+    with open("player/{}.html".format(year), encoding="utf-8") as f:
+        page = f.read()
+        
+    soup = BeautifulSoup(page, "lxml")
+    remove_headers = soup.find_all("tr", class_="thead")
+    
+    for header in remove_headers:
+        header.decompose()
+        
+    per_game_table = soup.find(id="per_game_stats")
+    
+    per_game_df = pd.read_html(str(per_game_table))[0]
+    per_game_df["Year"] = year 
+    
+    player_per_game.append(per_game_df)
+    
+player_per_game_all = pd.concat(player_per_game)
+player_per_game_all.to_excel("~/scrapping/player2.xlsx")
+
+for year in years:
+    starting_url = "https://www.basketball-reference.com/leagues/NBA_{}_standings.html"
+    url = starting_url.format(year)
+    
+    data = requests.get(url)
+    
+    with open("standings/{}.html".format(year), "w+", encoding="utf-8") as f:
+        f.write(data.text)
+
+standings = []
+
+for year in years:
+    with open("standings/{}.html".format(year), encoding="utf-8") as f:
+        page = f.read()
+        
+    soup = BeautifulSoup(page, "lxml")
+    remove_headers = soup.find_all("tr", class_="thead")
+    
+    for header in remove_headers:
+        header.decompose()
+        
+    division = soup.find(id="divs_standings_E")
+    division_df = pd.read_html(str(division))[0]
+    division_df["Year"] = year
+    division_df["Conference"] = division_df["Eastern Conference"]
+    del division_df["Eastern Conference"]
+    standings.append(division_df)
+    
+    division = soup.find(id="divs_standings_W")
+    division_df = pd.read_html(str(division))[0]
+    division_df["Year"] = year
+    division_df["Conference"] = division_df["Western Conference"]
+    del division_df["Western Conference"]
+    standings.append(division_df)
+
+standings_all = pd.concat(standings)
+    
+standings_all.to_excel("~/scrapping/standings.xlsx")
